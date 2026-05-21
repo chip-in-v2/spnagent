@@ -37,13 +37,80 @@ jobs:
       - name: Prepare assets
         run: |
           mkdir -p release-assets
+          cp target/x86_64-unknown-linux-musl/release/consumer release-assets/multi-consumer
           cp target/x86_64-unknown-linux-musl/release/consumer release-assets/consumer
           cp target/x86_64-unknown-linux-musl/release/provider release-assets/provider
+
+          # Create config-reloader.sh
+          cat <<'EOF' > release-assets/config-reloader.sh
+          #!/bin/bash
+          WATCH_DIR="/etc/supervisor/conf.d"
+          echo "[$(date)] Initial config sync on startup..."
+          supervisorctl reread
+          supervisorctl update
+          echo "[$(date)] Starting supervisord config watcher for $WATCH_DIR..."
+          inotifywait -m -e moved_to -e create "$WATCH_DIR" | while read -r path action file; do
+              if [ "$file" = "..data" ]; then
+                  echo "[$(date)] ConfigMap update detected via '..data' symlink swap."
+                  sleep 1
+                  echo "[$(date)] Executing supervisorctl update..."
+                  supervisorctl reread
+                  supervisorctl update
+              fi
+          done
+          EOF
+
+          # Create supervisord.conf
+          cat <<EOF > release-assets/supervisord.conf
+          [supervisord]
+          nodaemon=true
+          user=root
+          logfile=/dev/stdout
+          logfile_maxbytes=0
+          pidfile=/var/run/supervisord.pid
+
+          [supervisorctl]
+          serverurl=unix:///var/run/supervisor.sock
+
+          [unix_http_server]
+          file=/var/run/supervisor.sock
+
+          [rpcinterface:supervisor]
+          supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface
+
+          [program:config-reloader]
+          command=/bin/bash /opt/config-reloader.sh
+          autostart=true
+          autorestart=true
+          stdout_logfile=/dev/stdout
+          stdout_logfile_maxbytes=0
+          stderr_logfile=/dev/stderr
+          stderr_logfile_maxbytes=0
+
+          [include]
+          files = /etc/supervisor/conf.d/*.conf
+          EOF
+
+          # Dockerfile for original single consumer (scratch)
           cat <<EOF > release-assets/Dockerfile.consumer
           FROM scratch
           COPY consumer /consumer
           ENTRYPOINT ["/consumer"]
           EOF
+
+          # Dockerfile for new multi-consumer (alpine + supervisor)
+          cat <<EOF > release-assets/Dockerfile.multi-consumer
+          FROM alpine:latest
+          RUN apk add --no-cache tini supervisor inotify-tools bash
+          COPY --chmod=755 consumer /opt/consumer
+          COPY --chmod=755 config-reloader.sh /opt/config-reloader.sh
+          COPY supervisord.conf /etc/supervisord.conf
+          RUN mkdir -p /etc/workers /etc/supervisor/conf.d
+          ENTRYPOINT ["/sbin/tini", "--"]
+          CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+          EOF
+
+          # Dockerfile for provider (scratch)
           cat <<EOF > release-assets/Dockerfile.provider
           FROM scratch
           COPY provider /provider
@@ -57,6 +124,7 @@ jobs:
           name: Latest Release
           body: "Automatically built from the latest commit on main branch."
           files: |
+            release-assets/multi-consumer
             release-assets/consumer
             release-assets/provider
         env:
@@ -68,6 +136,22 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata (multi-consumer)
+        id: meta-multi-consumer
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/multi-consumer
+          tags: |
+            type=raw,value=latest
+
+      - name: Build and push Docker image (multi-consumer)
+        uses: docker/build-push-action@v5
+        with:
+          context: release-assets
+          file: release-assets/Dockerfile.multi-consumer
+          push: true
+          tags: ${{ steps.meta-multi-consumer.outputs.tags }}
 
       - name: Extract Docker metadata (consumer)
         id: meta-consumer
