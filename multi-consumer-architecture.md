@@ -10,29 +10,31 @@ In Kubernetes, there is a need to run multiple consumers as "sidecars" (for dire
 ## Container Architecture
 
 ### Process Hierarchy
-
+```
 Container (Multi-Consumer)
-├─ PID 1: tini
-├─ Process Manager: supervisord
-├─ Watcher Loop: inotifywait + config-reloader.sh (Shell Script)
-├─ Consumer 1: ENV1=a /opt/consumer-binary --config=/etc/consumers/a.yaml
-├─ Consumer 2: ENV1=b /opt/consumer-binary --config=/etc/consumers/b.yaml
-└─ (Dynamic addition/removal of files in supervisor/conf.d → Auto start/stop)
+PID 1: tini
+|-- Process Manager: supervisord
+|-- Watcher Loop: inotifywait + config-reloader.sh (Shell Script)
+|-- Consumer 1: ENV1=a /opt/consumer-binary --config=/etc/consumers/a.yaml
+|-- Consumer 2: ENV1=b /opt/consumer-binary --config=/etc/consumers/b.yaml
+`-- (Dynamic addition/removal of files in supervisor/conf.d -> Auto start/stop)
+```
 
 ### Directory Structure
 
+```
 /etc/supervisor/supervisord.conf
-│   └───supervisor/conf.d/*.conf 
-│                    └──00-default.conf (Dummy file to ensure directory existence)
-│
+ `-- supervisor/conf.d/*.conf 
+     `-- 00-default.conf (Dummy file for directory existence)
+
 /etc/ssl/
-└── workers/
-    ├── ca-certificates/   CA certs for verifying target URLs (ConfigMap)
-    │   └── private-ca.crt
-    │
-    └── client-certs/      Client certs for authentication (Secret)
-        ├── worker-a.crt
-        └── worker-a.key
+ `-- workers/
+     |-- ca-certificates/ (CA certs for verifying target URLs (ConfigMap))
+     |   `-- private-ca.crt
+     `-- client-certs/ (Client certs for authentication (Secret))
+         |-- worker-a.crt
+         `-- worker-a.key
+```
 
 **K8s Implementation Details:**
  - **Volume 1 (ConfigMap):** Mounted to `/etc/supervisor/conf.d/` (Controls dynamic process scaling).
