@@ -1714,10 +1714,6 @@ impl HubConnection {
                             conn
                         }
                         Err(e) => {
-                            // Attempt to extract and log details of the peer's certificate when the handshake fails (e.g., UnknownIssuer).
-                            if let Ok(data) = connecting.handshake_data().await {
-                                common::log_peer_certificates(data);
-                            }
                             error!("Connection handshake failed: {}. Retrying in {:?}...", e, common::HUB_CONNECTION_RETRY_INTERVAL);
                             tokio::time::sleep(common::HUB_CONNECTION_RETRY_INTERVAL).await;
                             continue;

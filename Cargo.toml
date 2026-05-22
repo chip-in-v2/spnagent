@@ -1,6 +1,6 @@
 [package]
 name = "spnagent"
-version = "0.96.11"
+version = "0.96.12"
 edition = "2024"
 
 [lib]

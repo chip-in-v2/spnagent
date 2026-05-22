@@ -228,16 +228,3 @@ pub async fn check_and_get_info_connection(
 
     (cn, alpn)
 }
-
-/// Logs details of peer certificates from handshake data.
-/// This is useful for debugging certificate validation errors such as 'UnknownIssuer'.
-pub fn log_peer_certificates(handshake_data: Box<dyn std::any::Any>) {
-    if let Some(data) = handshake_data.downcast_ref::<quinn::crypto::rustls::HandshakeData>() {
-        let protocol = data.protocol.as_ref().map(|p| String::from_utf8_lossy(p)).unwrap_or_else(|| "None".into());
-        let server_name = data.server_name.as_deref().unwrap_or("None");
-
-        info!("Handshake metadata - Server Name: {}, ALPN: {}", server_name, protocol);
-        warn!("Note: In quinn 0.11 (rustls), the peer certificate chain is not available in HandshakeData on failure.");
-        warn!("To debug 'UnknownIssuer', please verify the CA certificate in the trust store against the Hub's certificate.");
-    }
-}
