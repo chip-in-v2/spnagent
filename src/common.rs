@@ -60,6 +60,7 @@ pub fn load_certs_and_key(
     ),
     Box<dyn Error>,
 > {
+    info!("Loading client certificates from '{}'...", my_cert_path);
     let certs = CertificateDer::pem_file_iter(my_cert_path)
         .map_err(|e| {
             format!(
@@ -68,9 +69,17 @@ pub fn load_certs_and_key(
             )
         })?
         .map(|cert_result| {
-            cert_result.map_err(|e| {
-                format!("Failed to parse certificate in '{}': {}", my_cert_path, e).into()
-            })
+            let cert = cert_result.map_err(|e| {
+                format!("Failed to parse certificate in '{}': {}", my_cert_path, e)
+            })?;
+
+            if let Ok((_, parsed_cert)) = parse_x509_certificate(cert.as_ref()) {
+                info!("  - Client Cert: {}", parsed_cert.subject());
+                let validity = parsed_cert.validity();
+                info!("    Validity: {} to {}", validity.not_before, validity.not_after);
+            }
+
+            Ok(cert)
         })
         .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
 
@@ -78,19 +87,30 @@ pub fn load_certs_and_key(
         .map_err(|e| format!("Failed to load private key from '{}': {}", my_key_path, e))?;
 
     let mut truststore = quinn::rustls::RootCertStore::empty();
-    for cert in CertificateDer::pem_file_iter(trust_ca_cert_path).map_err(|e| {
+    info!("Loading Trusted CAs from '{}'...", trust_ca_cert_path);
+    let mut ca_count = 0;
+
+    for cert_result in CertificateDer::pem_file_iter(trust_ca_cert_path).map_err(|e| {
         format!(
             "Failed to read trust store file at '{}': {}",
             trust_ca_cert_path, e
         )
     })? {
-        truststore.add(cert.map_err(|e| {
+        let cert = cert_result.map_err(|e| {
             format!(
                 "Failed to parse CA certificate in '{}': {}",
                 trust_ca_cert_path, e
             )
-        })?)?;
+        })?;
+
+        if let Ok((_, parsed_cert)) = parse_x509_certificate(cert.as_ref()) {
+            info!("  - Trusted CA: {}", parsed_cert.subject());
+        }
+
+        truststore.add(cert)?;
+        ca_count += 1;
     }
+    info!("Successfully loaded {} Trusted CA(s).", ca_count);
 
     Ok((certs, key, truststore))
 }
@@ -207,4 +227,17 @@ pub async fn check_and_get_info_connection(
     }
 
     (cn, alpn)
+}
+
+/// Logs details of peer certificates from handshake data.
+/// This is useful for debugging certificate validation errors such as 'UnknownIssuer'.
+pub fn log_peer_certificates(handshake_data: Box<dyn std::any::Any>) {
+    if let Some(data) = handshake_data.downcast_ref::<quinn::crypto::rustls::HandshakeData>() {
+        let protocol = data.protocol.as_ref().map(|p| String::from_utf8_lossy(p)).unwrap_or_else(|| "None".into());
+        let server_name = data.server_name.as_deref().unwrap_or("None");
+
+        info!("Handshake metadata - Server Name: {}, ALPN: {}", server_name, protocol);
+        warn!("Note: In quinn 0.11 (rustls), the peer certificate chain is not available in HandshakeData on failure.");
+        warn!("To debug 'UnknownIssuer', please verify the CA certificate in the trust store against the Hub's certificate.");
+    }
 }

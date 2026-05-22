@@ -1699,23 +1699,29 @@ impl HubConnection {
 
                 // --- 1. Connect ---
                 info!("Attempting to establish QUIC connection...");
-                let connection = match endpoint.connect(addr, &server_name) {
-                    Ok(connecting) => match connecting.await {
-                        Ok(conn) => {
-                            info!("Connection handshake successful.");
-                            conn
-                        }
-                        Err(e) => {
-                            error!("Connection handshake failed: {}. Retrying in {:?}...", e, common::HUB_CONNECTION_RETRY_INTERVAL);
-                            tokio::time::sleep(common::HUB_CONNECTION_RETRY_INTERVAL).await;
-                            continue;
-                        }
-                    },
+                let mut connecting = match endpoint.connect(addr, &server_name) {
+                    Ok(c) => c,
                     Err(e) => {
                         error!("Failed to initiate connection: {}. Retrying in {:?}...", e, common::HUB_CONNECTION_RETRY_INTERVAL);
                         tokio::time::sleep(common::HUB_CONNECTION_RETRY_INTERVAL).await;
                         continue;
                     }
+                };
+
+                let connection = match (&mut connecting).await {
+                        Ok(conn) => {
+                            info!("Connection handshake successful.");
+                            conn
+                        }
+                        Err(e) => {
+                            // Attempt to extract and log details of the peer's certificate when the handshake fails (e.g., UnknownIssuer).
+                            if let Ok(data) = connecting.handshake_data().await {
+                                common::log_peer_certificates(data);
+                            }
+                            error!("Connection handshake failed: {}. Retrying in {:?}...", e, common::HUB_CONNECTION_RETRY_INTERVAL);
+                            tokio::time::sleep(common::HUB_CONNECTION_RETRY_INTERVAL).await;
+                            continue;
+                        }
                 };
 
                 // Extract certificate information for logging and ID compliance.
