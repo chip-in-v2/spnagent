@@ -1,4 +1,15 @@
-# Architecture: Dynamic Multi-Process Consumer Container
+# Multi-Consumer Architecture: Dynamic Multi-Process Sidecar
+
+## Usage Overview
+This container allows you to dynamically manage multiple consumer processes with different configurations without restarting the container. 
+
+To manage workers:
+- **Scale/Configure:** Simply add or remove `.conf` files in `/etc/supervisor/conf.d/`.
+- **Security:** Provide the corresponding certificates and keys in the designated certificate volumes.
+
+`supervisord` monitors these configuration changes and automatically starts or stops consumer instances, ensuring continuous operation.
+
+This implementation corresponds to `spnagent/multi-consumer`, the third of the three packages available in the GitHub repository.
 
 ## Overview
 This design allows running multiple consumer processes with different configurations within a single container. 
