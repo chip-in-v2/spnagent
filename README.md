@@ -11,8 +11,16 @@ Component of the SPN (Service Provider Network) infrastructure: a secure, virtua
 - **Sidecar Support**: Optimized for sidecar patterns in containerized environments.
 
 ## Configuration (Environment Variables)
-- `SPN_HUB_URL`: URL/Address of the target `spnhub` server.
-- `RUST_LOG`: Log level (e.g., `info`, `debug`).
+- `SPN_HUB_HOSTNAME`: Hostname of the target `spnhub` server.
+- `SPN_HUB_PORT`: Port of the target `spnhub` server (default: `4433`).
+- `SPN_AGENT_TRUST_CERTIFICATE_ROOT`: Path to the CA certificate file (PEM) used to verify the hub's identity.
+- `SPN_AGENT_CLIENT_CERTIFICATE`: Path to the client certificate file (PEM format) for mTLS authentication.
+- `SPN_AGENT_CLIENT_CERTIFICATE_KEY`: Path to the client private key file.
+- `RUST_LOG`: Log level (e.g., `error`, `warn`, `info`, `debug`).
+- **Provider (Service Registration)**:
+  - `FORWARD_ADDRESS`: The local address and port of the backend service to be exposed (e.g., `127.0.0.1:8080`).
+- **Consumer (Service Mapping)**:
+  - `BIND_ADDRESS`: The local address and port to bind for providing access to the remote service (e.g., `127.0.0.1:9090`).
 
 ## Public Interface
 - **UDP (Outbound)**: Established tunnels to `spnhub` for service traffic.
