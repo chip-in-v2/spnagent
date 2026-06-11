@@ -39,6 +39,9 @@ pub fn initialize_crypto_provider() {
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("could not install default crypto provider");
+
+    // TLS intercept - Temporary workaround; revisit for cleaner implementation in Quinn 0.12.
+    crate::tls_kx_intercept::install_intercept_provider();
 }
 
 /// Loads client certificates, a private key, and a trust store from PEM files.
