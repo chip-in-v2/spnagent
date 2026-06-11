@@ -1432,7 +1432,7 @@ dependencies = [
 
 [[package]]
 name = "spnagent"
-version = "0.96.16"
+version = "0.96.17"
 dependencies = [
  "chrono",
  "clap",
