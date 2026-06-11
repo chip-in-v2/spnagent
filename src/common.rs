@@ -36,7 +36,7 @@ pub fn setup_tracing() {
 
 /// Installs the default crypto provider.
 pub fn initialize_crypto_provider() {
-    //rustls::crypto::ring::default_provider()
+    // rustls::crypto::ring::default_provider()
     //    .install_default()
     //    .expect("could not install default crypto provider");
 
